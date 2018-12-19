@@ -1,4 +1,4 @@
-# SPARC OER Data
+# SPARC OER Data, with Analysis
 
 Textbook price data collected by SPARC together with code for analysis written by David Wiley.
 
