@@ -1,0 +1,234 @@
+---
+title: "New Data on OER Student Savings and Adoption Rates"
+author: "David Wiley"
+date: "12/19/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+options(digits=5)
+```
+
+### OER: Student Savings and Adoption Rates 
+
+At the OpenEd Conference in 2013, Nicole Allen and I challenged the OER community to save students one billion dollars. Five years later, SPARC have collected a significant amount of data in order to answer the question of whether or not we have achieved that goal. You can read more about the data collection methodology and their ongoing work on this question [here](#). SPARC have made the data available under a CC0 license and you can download them [here](#). 
+
+As a brief summary, part of the data collection involved sampling the prices for required course materials across a range of material formats, including new print, used print, print rental, digital rental, and loose-leaf. SPARC started with a stratified sample of 120 US post-secondary institutions. Then, working from a pool of 20 courses for which adoptable OER exist, they randomly selected five courses to examine at each instituion and collected pricing information for all available formats from each campus' online bookstore. Quite the task!
+
+Below I present the results of some exploratory data analysis intended to answer basic questions. In this post I'll "stick to the facts" and provide some color commentary in another post. (The source code used to perform the EDA below is also available for download [here](#) and released under CC0.)
+
+---
+
+### The tl;dr
+
+* The overall average price for "Traditionally Copyrighted Materials" (TCM), defined as the price halfway between the highest cost option (e.g., new print) and the lowest cost option (e.g., a digital rental), is $134.26.
+
+* The overall average price for "OER Only" (Open Educational Resources in all formats, including new print, used print, rental, loose-leaf, and digital) is $10.69.
+
+* The overall average price for "OER Hybrid" (Open Educational Resources in all formats, paired with a homework system, personalized learning platform, or other value-added service) is $34.71.
+
+* The overall average price for all OER (both OER Only and OER Hybrid) is $17.32.
+
+* __Average student savings from OER, calculated as the overall average price for TCM minus the overall average price for all OER, is $116.94.__
+
+* __The adoption rate of OER is 6.3%.__
+
+---
+
+### Exploratory Data Analysis
+
+```{r analysis_code, message=FALSE, echo=FALSE}
+# Load utility functions
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(kableExtra)
+# Read in the data
+df <- read_csv("cleaned-billion-dollars.csv")
+
+# Exclude rows in the dataframe missing necessary data (e.g., the course wasn't offered at the institution that term)
+df <- df %>% filter(!is.na(df$highest_price))
+
+# Label Traditionally Copyrighted Materials (TCM)
+df$oer[is.na(df$oer)] <- "TCM"
+
+# Calculate the average of the highest and lowest price for each row in the data
+df$avg_price <- ((df$highest_price + df$lowest_price) / 2)
+
+# Calculate the average cost of (TCM)
+tcm_cost_mean <- mean(df$avg_price[df$oer=="TCM"], na.rm = TRUE)
+
+# Calculate the average cost of only open educational resources (OER)
+oer_only_cost_mean <- mean(df$avg_price[df$oer=="OER Only"], na.rm = TRUE)
+
+# Calculate the average cost of OER and associated homework platforms / value added services
+oer_hybrid_cost_mean <- mean(df$avg_price[df$oer=="OER Hybrid"], na.rm = TRUE)
+
+# Calculate the average cost of all OER
+oer_all_cost_mean <- mean(df$avg_price[df$oer=="OER Hybrid" | df$oer=="OER Only"], na.rm = TRUE)
+
+# Calculate average cost savings of OER without a VAS over TCM 
+oer_only_savings <- tcm_cost_mean - oer_only_cost_mean
+
+# Calculate average cost savings of OER with a VAS adoptions over TCM 
+oer_hybrid_savings <- tcm_cost_mean - oer_hybrid_cost_mean
+
+# Calculate average cost savings of all OER adoptions over TCM 
+oer_all_savings <- tcm_cost_mean - oer_all_cost_mean
+
+# Calculate the rate at which OER are adopted without VAS 
+oer_only_adoption_rate <- (sum(df$oer=="OER Only", na.rm = TRUE)) / nrow(df)
+
+# Calculate the rate at which OER are adopted with a VAS
+oer_hybrid_adoption_rate <- (sum(df$oer=="OER Hybrid", na.rm = TRUE)) / nrow(df)
+
+# Calculate the rate at which OER are adopted with or without a VAS
+oer_all_adoption_rate <- (sum(df$oer=="OER Only", na.rm = TRUE) + sum(df$oer=="OER Hybrid", na.rm = TRUE)) / nrow(df)
+
+blue_color <- "#1565c0"
+```
+
+What types of institutions are represented in the data, and how many of each type are there?
+
+```{r echo=FALSE, fig.align = 'center'}
+# Types of institutions
+t <- df %>%
+  group_by(institution, institution_type) %>%
+  summarise(high = mean(highest_price, na.rm = TRUE))
+
+ggplot(t, aes(institution_type)) + geom_bar(fill = blue_color) +
+  labs(x = "Type of Institution", y = "Number of Institutions", title = "Types of Institutions Represented in the Data")
+```
+
+---
+
+Across all available course materials formats, how do the average prices of the most expensive options and least expensive options vary across type of institution?
+
+```{r echo=FALSE, fig.align = 'center'}
+highest_price_institution <- df %>% 
+  group_by(institution_type) %>% 
+  summarise(avg_highest_price = round(mean(highest_price, na.rm = TRUE), 2))
+
+lowest_price_institution <- df %>% 
+  group_by(institution_type) %>% 
+  summarise(avg_lowest_price = round(mean(lowest_price, na.rm = TRUE), 2))
+
+price_institution <- left_join(highest_price_institution, lowest_price_institution)
+
+  ggplot(price_institution, aes(institution_type, avg_highest_price)) + 
+    geom_label(aes(label=paste0("$", avg_highest_price)), vjust = 0, nudge_y = 0.1, fill = blue_color, colour = "white") +
+    geom_label(data = price_institution, aes(institution_type, avg_lowest_price, label=paste0("$", avg_lowest_price)), vjust = 0, nudge_y = -4, fill = blue_color, colour = "white") +
+    ylim(0, 250) +theme(legend.position="none") +
+    labs(y = "Price", x = "Type of Institution", title = "Average Highest and Lowest Prices by Type of Institution")
+
+
+```
+
+---
+
+Across all available course materials formats, how do the average prices of the most expensive options and least expensive options vary across courses?
+
+```{r echo=FALSE, fig.align = 'center'}
+highest_price_course <- df %>% 
+  group_by(courses) %>% 
+  summarise(avg_highest_price = round(mean(highest_price, na.rm = TRUE), 2))
+
+lowest_price_course <- df %>% 
+  group_by(courses) %>% 
+  summarise(avg_lowest_price = round(mean(lowest_price, na.rm = TRUE), 2))
+
+price_course <- left_join(highest_price_course, lowest_price_course)
+
+  ggplot(price_course, aes(courses, avg_highest_price)) + geom_point(shape = 3, size = 2, colour = blue_color) + ylim(0, 250) +
+    geom_point(data = price_course, aes(courses, avg_lowest_price), shape = 2, size = 2, colour = blue_color) + coord_flip() +
+  labs(y = "Price", x = "Course", title = "Average Highest and Lowest Prices by Course")
+
+```
+
+---
+
+How do the average prices of the most expensive options and least expensive options vary across TCM, OER Only, and OER Hybrid?
+
+```{r echo=FALSE, fig.align = 'center'}
+highest_price_material <- df %>% 
+  group_by(oer) %>% 
+  summarise(avg_highest_price = round(mean(highest_price, na.rm = TRUE), 2))
+
+lowest_price_material <- df %>% 
+  group_by(oer) %>% 
+  summarise(avg_lowest_price = round(mean(lowest_price, na.rm = TRUE), 2))
+
+price_material <- left_join(highest_price_material, lowest_price_material)
+
+  ggplot(price_material, aes(oer, avg_highest_price)) + 
+    geom_label(aes(label=paste0("$", avg_highest_price)), vjust = 0, nudge_y = -3, fill = blue_color, colour = "white") +
+    geom_label(data = price_material, aes(oer, avg_lowest_price, label=paste0("$", avg_lowest_price)), vjust = 0, nudge_y = -5, fill = blue_color, colour = "white") +
+    ylim(0, 200) +theme(legend.position="none") +
+  labs(y = "Price", x = "Type of Required Materials", title = "Average Highest and Lowest Prices by Type of Required Materials")
+
+```
+
+---
+
+If we take the midpoint between the most expensive option and least expensive option as the "overall average price", what is the overall average price for each type of required course material? 
+
+```{r fig.align = 'center'}
+overall_price_labels <- c("TCM", "OER Only", "OER Hybrid", "OER (All)")
+overall_avg_price <- c(tcm_cost_mean, oer_only_cost_mean, oer_hybrid_cost_mean, oer_all_cost_mean)
+overall <- data.frame(overall_price_labels, overall_avg_price)
+overall$overall_avg_price <- round(overall$overall_avg_price, 2)
+colnames(overall)[1] <- "type_of_materials"
+
+  ggplot(overall, aes(type_of_materials, overall_avg_price)) + 
+    geom_label(aes(label=paste0("$",overall_avg_price)), vjust = 0, nudge_y = -4, fill = blue_color, colour = "white") +
+    ylim(0, 150) +
+ labs(y = "Price", x = "Type of Required Materials", title = "Overall Average Prices by Type of Required Materials")
+
+```
+
+---
+
+How much money do students save when their faculty adopt OER? We can calculate student savings with OER by starting with the overall average price of TCM and subtracting each of the overall average prices of OER in turn.  
+
+```{r fig.align = 'center'}
+
+savings_price_labels <- c("OER Only", "OER Hybrid", "OER (All)")
+# savings_avg_price <- c(tcm_cost_mean, oer_only_cost_mean, oer_hybrid_cost_mean, oer_all_cost_mean)
+savings_avg_savings <- c(round(oer_only_savings, 2), round(oer_hybrid_savings, 2), round(oer_all_savings, 2))
+savings <- data.frame(savings_price_labels, savings_avg_savings)
+colnames(savings)[1] <- "type_of_oer"
+colnames(savings)[2] <- "avg_savings"
+
+  ggplot(savings, aes(type_of_oer, avg_savings)) + 
+    geom_label(aes(label=paste0("$", avg_savings)), vjust = 0, nudge_y = -4, fill = blue_color, colour = "white") +
+    ylim(0, 150) +
+ labs(y = "Amount Saved", x = "Type of OER", title = "Student Savings by Type of OER")
+
+```
+
+---
+
+What is the rate of OER adoption in the data set?
+
+```{r rates_graph, echo=FALSE, fig.align='center', fig.height=3, fig.width=5, warning=FALSE}
+type_of_materials <- c("TCM", "OER Only", "OER Hybrid")
+adoption_rate <- c(100 - (oer_all_adoption_rate * 100), oer_only_adoption_rate * 100, oer_hybrid_adoption_rate * 100)
+results <- data.frame(type_of_materials, adoption_rate)
+results$adoption_rate <- round(results$adoption_rate, 2)
+
+ggplot(results, aes(x = "", y = adoption_rate, fill = type_of_materials)) +
+  geom_bar(width = 1, stat = "identity") +
+  coord_polar("y", start=0) + 
+  scale_fill_manual(values=c("#ffca28", "#1976d2", "#90a4ae"))  +
+  theme_void() +
+  labs(x = "", y = "", fill = "Type of Materials", title = "Rate of Adoption of Different Types of Materials")
+
+```
+---
+
+```{r}
+results %>% 
+kable() %>%
+kable_styling()
+```
