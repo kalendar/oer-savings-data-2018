@@ -1,4 +1,6 @@
-# Course Material Price Data, with Analysis
+# THESE DATA ARE NOW OUT OF DATE AND SHOULD NOT BE CITED. THEY ARE STILL AVAILABLE SOLELY FOR HISTORICAL PURPOSES.
+
+## Course Material Price Data, with Analysis
 
 Course material price data collected by Mo Nyamweya (SPARC) together with code for analysis written by David Wiley. 
 
